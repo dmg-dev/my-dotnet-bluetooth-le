@@ -1,0 +1,86 @@
+﻿<Project Sdk="MSBuild.Sdk.Extras/3.0.44">
+	<PropertyGroup>
+		<!-- <TargetFrameworks>netstandard2.0;</TargetFrameworks> -->
+		<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net8.0-windows10.0.19041;net8.0-windows10.0.22000.0;</TargetFrameworks>
+		<AssemblyName>Plugin.BLE</AssemblyName>
+		<RootNamespace>Plugin.BLE</RootNamespace>
+		<Version>3.2.0-beta.1</Version>
+		<Product>$(AssemblyName) ($(TargetFramework))</Product>
+		<Authors>Adrian Seceleanu, Sven-Michael Stübe, Janus Weil</Authors>
+		<PackageId>Plugin.BLE</PackageId>
+		<PackOnBuild>true</PackOnBuild>
+		<PackageIcon>icon_small.png</PackageIcon>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+		<Owners>Adrian Seceleanu, Sven-Michael Stübe, Janus Weil</Owners>
+		<PackageProjectUrl>https://github.com/dotnet-bluetooth-le/dotnet-bluetooth-le/</PackageProjectUrl>
+		<Summary>Plugin to access Bluetooth Low Energy functionality on Android, iOS, macOS, and Windows.</Summary>
+		<PackageTags>
+			xamarin, maui, pcl, xam.pcl, bluetooth, ble, .net maui, xamarin.forms, android, ios
+		</PackageTags>
+		<Title>Bluetooth Low Energy (BLE) Plugin for .NET MAUI and Xamarin</Title>
+		<Description>
+			Xamarin and MAUI plugin to access Bluetooth Low Energy functionality on Android, iOS, macOS, and Windows.
+		</Description>
+		<Copyright>Apache-2.0</Copyright>
+		<RepositoryUrl>https://github.com/dotnet-bluetooth-le/dotnet-bluetooth-le/</RepositoryUrl>
+		<PackageReleaseNotes>https://github.com/dotnet-bluetooth-le/dotnet-bluetooth-le/blob/master/doc/changelog.md</PackageReleaseNotes>
+
+		<NeutralLanguage>en</NeutralLanguage>
+		<LangVersion>latest</LangVersion>
+		<EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+		<DefineConstants>$(DefineConstants);</DefineConstants>
+	</PropertyGroup>
+
+	<PropertyGroup>
+		<SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-windows10'))">10.0.17763.0</SupportedOSPlatformVersion>
+		<TargetPlatformMinVersion Condition="$(TargetFramework.Contains('-windows10'))">10.0.17763.0</TargetPlatformMinVersion>
+	</PropertyGroup>
+
+	<PropertyGroup Condition=" '$(Configuration)'=='Release' And '$(OS)' == 'Windows_NT' ">
+		<!-- sourcelink: Declare that the Repository URL can be published to NuSpec -->
+		<PublishRepositoryUrl>true</PublishRepositoryUrl>
+		<!-- sourcelink: Embed source files that are not tracked by the source control manager to the PDB -->
+		<EmbedUntrackedSources>true</EmbedUntrackedSources>
+		<!-- sourcelink: Include PDB in the built .nupkg -->
+		<AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.pdb</AllowedOutputExtensionsInPackageBuildOutputFolder>
+	</PropertyGroup>
+
+	<ItemGroup Condition=" '$(Configuration)'=='Release' And '$(OS)' == 'Windows_NT' ">
+		<PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.1.1">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+		</PackageReference>
+	</ItemGroup>
+
+	<PropertyGroup Condition=" '$(Configuration)'=='Debug' ">
+		<DebugSymbols>true</DebugSymbols>
+		<GenerateDocumentationFile>false</GenerateDocumentationFile>
+	</PropertyGroup>
+	<PropertyGroup Condition=" '$(Configuration)'=='Release' ">
+		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<Compile Include="**\Shared\**\*.cs" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Include="..\..\icon_small.png" Pack="true" Visible="false" PackagePath="" />
+		<None Include="..\..\README.md" Pack="true" Visible="false" PackagePath="" />
+	</ItemGroup>
+
+	<ItemGroup Condition=" $(TargetFramework.StartsWith('netstandard')) ">
+	</ItemGroup>
+
+	<ItemGroup Condition=" $(TargetFramework.StartsWith('uap10.0')) ">
+		<Compile Include="**\Windows\**\*.cs" />
+	</ItemGroup>
+
+	<ItemGroup Condition=" $(TargetFramework.Contains('-windows')) ">
+		<Compile Include="**\Windows\**\*.cs" />
+	</ItemGroup>
+	
+
+</Project>

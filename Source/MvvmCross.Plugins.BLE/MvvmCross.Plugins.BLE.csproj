@@ -1,0 +1,140 @@
+﻿<Project Sdk="MSBuild.Sdk.Extras/3.0.44">
+	<PropertyGroup>
+		<TargetFrameworks>net8.0-android34.0;net9.0-android</TargetFrameworks>
+		<TargetFrameworks Condition="!$([MSBuild]::IsOSPlatform('linux'))">$(TargetFrameworks);net8.0-ios;net8.0-maccatalyst;net9.0-ios;net9.0-maccatalyst</TargetFrameworks>
+		<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);MonoAndroid13.0;Xamarin.iOS10;Xamarin.Mac20;uap10.0.19041;net8.0-windows10.0.19041;net9.0-windows10.0.19041</TargetFrameworks>
+		<AssemblyName>MVVMCross.Plugins.BLE</AssemblyName>
+		<RootNamespace>MVVMCross.Plugins.BLE</RootNamespace>
+		<Version>3.2.0-beta.1</Version>
+		<Product>$(AssemblyName) ($(TargetFramework))</Product>
+		<Authors>Adrian Seceleanu, Sven-Michael Stübe, Janus Weil</Authors>
+		<PackageId>MvvmCross.Plugin.BLE</PackageId>
+		<PackOnBuild>true</PackOnBuild>
+		<PackageIcon>icon_small.png</PackageIcon>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+		<Owners>Adrian Seceleanu, Sven-Michael Stübe, Janus Weil</Owners>
+		<PackageProjectUrl>https://github.com/dotnet-bluetooth-le/dotnet-bluetooth-le/</PackageProjectUrl>
+		<Summary>MVVMCross Plugin to access Bluetooth Low Energy functionality on Android, iOS, macOS, and Windows.</Summary>
+		<PackageTags>
+			xamarin, maui, pcl, xam.pcl, bluetooth, ble, .net maui, xamarin.forms, android, ios
+		</PackageTags>
+		<Title>MVVMCross Bluetooth Low Energy (BLE) Plugin for .NET MAUI and Xamarin</Title>
+		<Description>
+			MVVMCross Plugin to access Bluetooth Low Energy functionality on Android, iOS, macOS, and Windows.
+			Read the full documentation on the projects page.
+		</Description>
+		<Copyright>Apache-2.0</Copyright>
+		<RepositoryUrl>https://github/dotnet-bluetooth-le/dotnet-bluetooth-le/</RepositoryUrl>
+		<PackageReleaseNotes>https://github.com/dotnet-bluetooth-le/dotnet-bluetooth-le/blob/master/doc/changelog.md</PackageReleaseNotes>
+
+		<NeutralLanguage>en</NeutralLanguage>
+		<LangVersion>latest</LangVersion>
+		<EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+		<DefineConstants>$(DefineConstants);</DefineConstants>
+	</PropertyGroup>
+
+	<PropertyGroup>
+		<SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-ios'))">12.2</SupportedOSPlatformVersion>
+		<SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-tvos'))">12.2</SupportedOSPlatformVersion>
+		<SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-maccatalyst'))">15.0</SupportedOSPlatformVersion>
+		<SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-macos'))">10.14</SupportedOSPlatformVersion>
+		<SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">21.0</SupportedOSPlatformVersion>
+		<SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-windows10'))">10.0.17763.0</SupportedOSPlatformVersion>
+		<TargetPlatformMinVersion Condition="$(TargetFramework.Contains('-windows10'))">10.0.17763.0</TargetPlatformMinVersion>
+	</PropertyGroup>
+
+	<PropertyGroup Condition=" '$(Configuration)'=='Release' And '$(OS)' == 'Windows_NT' ">
+		<!-- sourcelink: Declare that the Repository URL can be published to NuSpec -->
+		<PublishRepositoryUrl>true</PublishRepositoryUrl>
+		<!-- sourcelink: Embed source files that are not tracked by the source control manager to the PDB -->
+		<EmbedUntrackedSources>true</EmbedUntrackedSources>
+		<!-- sourcelink: Include PDB in the built .nupkg -->
+		<AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.pdb</AllowedOutputExtensionsInPackageBuildOutputFolder>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="$(TargetFramework.Contains('-windows10'))">
+		<RuntimeIdentifiers>win10-x64;win10-x86;win10-arm64</RuntimeIdentifiers>
+		<UseRidGraph>true</UseRidGraph>
+	</PropertyGroup>
+
+	<ItemGroup Condition=" '$(Configuration)'=='Release' And '$(OS)' == 'Windows_NT' ">
+		<PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.1.1">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+		</PackageReference>
+	</ItemGroup>
+
+	<PropertyGroup Condition=" '$(Configuration)'=='Debug' ">
+		<DebugSymbols>true</DebugSymbols>
+		<GenerateDocumentationFile>false</GenerateDocumentationFile>
+	</PropertyGroup>
+	<PropertyGroup Condition=" '$(Configuration)'=='Release' ">
+		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<Compile Include="**\*.shared.cs" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Include="..\..\icon_small.png" Pack="true" Visible="false" PackagePath="" />
+		<None Include="..\..\README.md" Pack="true" Visible="false" PackagePath="" />
+	</ItemGroup>
+
+	<ItemGroup Condition=" $(TargetFramework.StartsWith('uap10.0')) ">
+		<PackageReference Include="MvvmCross" Version="8.0.2" />
+	</ItemGroup>
+
+	<ItemGroup Condition=" $(TargetFramework.Contains('-windows')) ">
+		<PackageReference Include="MvvmCross" Version="9.1.1" />
+	</ItemGroup>
+
+	<PropertyGroup Condition=" $(TargetFramework.StartsWith('uap10.0')) ">
+		<TargetPlatformMinVersion>10.0.16299.0</TargetPlatformMinVersion>
+	</PropertyGroup>
+
+	<PropertyGroup Condition=" $(TargetFramework.Contains('-android')) ">
+	</PropertyGroup>
+
+	<ItemGroup Condition=" $(TargetFramework.Contains('-android')) ">
+		<PackageReference Include="MvvmCross" Version="9.1.1" />
+	</ItemGroup>
+
+	<ItemGroup Condition=" $(TargetFramework.StartsWith('MonoAndroid')) ">
+		<PackageReference Include="MvvmCross" Version="8.0.2" />
+	</ItemGroup>
+
+	<ItemGroup Condition=" $(TargetFramework.StartsWith('Xamarin.iOS')) ">
+		<PackageReference Include="MvvmCross" Version="8.0.2" />
+	</ItemGroup>
+
+	<ItemGroup Condition=" $(TargetFramework.Contains('-ios')) ">
+		<PackageReference Include="MvvmCross" Version="9.1.1" />
+	</ItemGroup>
+
+	<ItemGroup Condition=" $(TargetFramework.StartsWith('Xamarin.Mac')) ">
+		<PackageReference Include="MvvmCross" Version="8.0.2" />
+	</ItemGroup>
+
+	<ItemGroup Condition=" $(TargetFramework.Contains('-mac')) ">
+		<PackageReference Include="MvvmCross" Version="9.1.1" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <ProjectReference Include="..\Plugin.BLE\Plugin.BLE.csproj" />
+	</ItemGroup>
+
+	<ItemGroup Condition=" $(TargetFramework.StartsWith('Xamarin.Mac')) ">
+		<Reference Include="Xamarin.Mac">
+			<HintPath Condition="Exists('C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\IDE\Extensions\Xamarin.VisualStudio')">C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\IDE\Extensions\Xamarin.VisualStudio\Xamarin.Mac.dll</HintPath>
+			<HintPath Condition="Exists('C:\Program Files\Microsoft Visual Studio\2022\Professional\Common7\IDE\Extensions\Xamarin.VisualStudio')">C:\Program Files\Microsoft Visual Studio\2022\Professional\Common7\IDE\Extensions\Xamarin.VisualStudio\Xamarin.Mac.dll</HintPath>
+			<HintPath Condition="Exists('C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\Extensions\Xamarin.VisualStudio')">C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\Extensions\Xamarin.VisualStudio\Xamarin.Mac.dll</HintPath>
+			<HintPath Condition="Exists('C:\Program Files\Microsoft Visual Studio\2022\Preview\Common7\IDE\Extensions\Xamarin.VisualStudio')">C:\Program Files\Microsoft Visual Studio\2022\Preview\Common7\IDE\Extensions\Xamarin.VisualStudio\Xamarin.Mac.dll</HintPath>
+		</Reference>
+	</ItemGroup>
+	<ItemGroup>
+	  <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="7.0.0" />
+	</ItemGroup>
+</Project>
