@@ -1,10 +1,10 @@
-﻿using MessagePack;
-using Plugin.BLE;
+﻿using Plugin.BLE;
 using Plugin.BLE.Abstractions;
 using Plugin.BLE.Abstractions.Contracts;
 using Plugin.BLE.Abstractions.Extensions;
 using Plugin.BLE.Extensions;
 using Plugin.BLE.Windows;
+using ProtoBuf.Meta;
 using System;
 using System.Collections;
 using System.Collections.Concurrent;
@@ -31,26 +31,6 @@ using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace BLE.Client.WinConsole
 {
-    
-    [MessagePackObject]
-    public class CommandHeader
-    {
-        [Key(0)] public ushort CommandId { get; set; }
-    }
-
-    [MessagePackObject]
-    public class MessageHeader
-    {
-        [Key(0)] public ushort MessageId { get; set; }
-    }
-    [MessagePackObject]
-    public class MessageRecordList
-    {
-        [Key(0)] public ushort NumRecords { get; set; }
-        [Key(1)] public string[] RecordNames { get; set; } = new string[10];
-    }
-
-
     internal class PluginDemos
     {
         // Test Program options.
@@ -181,7 +161,10 @@ namespace BLE.Client.WinConsole
                     // Read the all the Services from the connected Cygnus1Ex device.
                     // Subscribe to Characteristic with Notify.
                     //
+                    await Task.Delay(500);
+                    Write($"GetServicesAsync");
                     var services = await dev.GetServicesAsync();
+                    Write($"Found {services.Count} Services");
                     List<ICharacteristic> charlist = new List<ICharacteristic>();
                     foreach (var service in services)
                     {
@@ -217,29 +200,46 @@ namespace BLE.Client.WinConsole
                                             // Need to convert the byte[] to a stream so we can pull data from it.
                                             //
                                             Plugin.BLE.Abstractions.EventArgs.CharacteristicUpdatedEventArgs eventArgs = args;
-                                            using var stream = new MemoryStream(eventArgs.Characteristic.Value);
-                                            MessageHeader header = MessagePackSerializer.Deserialize<MessageHeader>(stream);
-                                            Write($"MessageId = {header.MessageId}");
-                                            switch (header.MessageId)
-                                            {
-                                                case 1:
-                                                    MessageRecordList message = MessagePackSerializer.Deserialize<MessageRecordList>(stream);
-                                                    Write($"Message Record List");
-                                                    Write($"Num Records = {message.NumRecords}");
-                                                    foreach (var rn in message.RecordNames)
-                                                    {
-                                                        Write($"RecordName = {rn}");
-                                                    }
-                                                    break;
-                                                default:
-                                                    Write($"Message Error");
-                                                    break;
-                                            }
+
                                             // Display the ASCII data.
                                             //byte[] ba = eventArgs.Characteristic.Value;
                                             //Write($"!Characteristic.Value: {ba} Len={ba.Length}");
                                             //string asciiString = Encoding.ASCII.GetString(ba, 0, ba.Length);
                                             //Write($"!Notify Characteristic.Value: {asciiString}");
+
+                                            //
+                                            // Deserialize the MessageHeader first so we know the commandType.
+                                            // The protobuf MessageHeader is always 5 bytes long.
+                                            //
+                                            const int headerSize = 5;
+                                            using var chs = new MemoryStream(eventArgs.Characteristic.Value, 0, headerSize);
+                                            var messageHeader = ProtoBuf.Serializer.Deserialize<Cygnus.MessageHeader>(chs);
+                                            Write($"commandType = {messageHeader.commandType}");
+                                            switch (messageHeader.commandType)
+                                            {
+                                                case Cygnus.CommandType.GetRecordList:
+                                                    {
+                                                        Write($"Message Record List");
+
+                                                        // Deserialize the Message payload from the buffer AFTER the MessageHeader.
+                                                        int balen = eventArgs.Characteristic.Value.Length;
+                                                        using var rls = new MemoryStream(eventArgs.Characteristic.Value, headerSize, balen - headerSize);
+                                                        var messageRecordList = ProtoBuf.Serializer.Deserialize<Cygnus.MessageRecordList>(rls);
+
+                                                        Write($"numRecords = {messageRecordList.numRecords}");
+                                                        foreach (var rn in messageRecordList.recordListItems)
+                                                        {
+                                                            Write($"RecordName = {rn.recordName} RecordType = {rn.recordType} Req. = {rn.numPointsRequired} Taken = {rn.numPointsTaken}");
+                                                        }
+                                                        break;
+                                                    }
+
+                                                default:
+                                                    {
+                                                        Write($"Message Error");
+                                                        break;
+                                                    }
+                                            }
                                         };
                                     }
                                     catch (Exception)
@@ -264,15 +264,13 @@ namespace BLE.Client.WinConsole
                                 consoleKey = ConsoleKey.Spacebar;
                                 // Send N bytes of data to the device.
 
-                                Write($"Sending a CommandHeader to the C1Ex..");
-                                CommandHeader header = new CommandHeader
-                                {
-                                    CommandId = 0x0100
-                                };
-
-                                byte[] tx = MessagePackSerializer.Serialize(header);
-                                await charWriteDataAsync(tx);
-                                Write($"Sent");
+                                Write($"Sending a CommandHeader to the C1Ex via protobuf..");
+                                MemoryStream ms = new MemoryStream();
+                                Cygnus.CommandHeader commandHeader = new Cygnus.CommandHeader { commandType = Cygnus.CommandType.GetRecordList };
+                                ProtoBuf.Serializer.Serialize<Cygnus.CommandHeader>(ms, commandHeader);
+                                await charWriteDataAsync( ms.GetBuffer() );
+                                Write($"CommandType.GetRecordList");
+                                Write($"Sent {ms.Position} bytes");
 
                                 //const int numBytes = 500;
                                 //byte[] bytes = Enumerable.Repeat((byte)0x43, numBytes).ToArray();
@@ -598,7 +596,7 @@ namespace BLE.Client.WinConsole
             args.Accept();
         }
 
-        public async Task DoTheScanning(ScanMode scanMode = ScanMode.LowPower, int time_ms = 2000)
+        public async Task DoTheScanning(ScanMode scanMode = ScanMode.LowPower, int time_ms = 4000)
         {
 
             if (!bluetoothLE.IsOn)
@@ -624,6 +622,7 @@ namespace BLE.Client.WinConsole
             };
             Adapter.ScanMode = scanMode;
             await Adapter.StartScanningForDevicesAsync(cancellationToken: cancellationTokenSource.Token);
+            await Adapter.StopScanningForDevicesAsync();
             scanningDone = true;
         }
 
