@@ -186,6 +186,11 @@ namespace BLE.Client.WinConsole
                                     charWriteDataAsync = characteristic.WriteAsync;
                                 }
 
+                                if (characteristic.Properties.HasFlag(CharacteristicPropertyType.Read))
+                                {
+                                    Write($"Read Characteristic ID = {characteristic.Id}");
+                                }
+
                                 if (characteristic.Properties.HasFlag(CharacteristicPropertyType.Notify))
                                 {
                                     Write($"Notify Characteristic ID = {characteristic.Id}");
@@ -208,38 +213,14 @@ namespace BLE.Client.WinConsole
                                             //Write($"!Notify Characteristic.Value: {asciiString}");
 
                                             //
-                                            // Deserialize the MessageHeader first so we know the commandType.
-                                            // The protobuf MessageHeader is always 5 bytes long.
+                                            // Deserialize the NotifyMessageReady first so we know the commandType to read.
+                                            // The protobuf NotifyMessageReady is always 5 bytes long.
                                             //
                                             const int headerSize = 5;
                                             using var chs = new MemoryStream(eventArgs.Characteristic.Value, 0, headerSize);
-                                            var messageHeader = ProtoBuf.Serializer.Deserialize<Cygnus.MessageHeader>(chs);
+                                            var messageHeader = ProtoBuf.Serializer.Deserialize<Cygnus.NotifyMessageReady>(chs);
                                             Write($"commandType = {messageHeader.commandType}");
-                                            switch (messageHeader.commandType)
-                                            {
-                                                case Cygnus.CommandType.GetRecordList:
-                                                    {
-                                                        Write($"Message Record List");
-
-                                                        // Deserialize the Message payload from the buffer AFTER the MessageHeader.
-                                                        int balen = eventArgs.Characteristic.Value.Length;
-                                                        using var rls = new MemoryStream(eventArgs.Characteristic.Value, headerSize, balen - headerSize);
-                                                        var messageRecordList = ProtoBuf.Serializer.Deserialize<Cygnus.MessageRecordList>(rls);
-
-                                                        Write($"numRecords = {messageRecordList.numRecords}");
-                                                        foreach (var rn in messageRecordList.recordListItems)
-                                                        {
-                                                            Write($"RecordName = {rn.recordName} RecordType = {rn.recordType} Req. = {rn.numPointsRequired} Taken = {rn.numPointsTaken}");
-                                                        }
-                                                        break;
-                                                    }
-
-                                                default:
-                                                    {
-                                                        Write($"Message Error");
-                                                        break;
-                                                    }
-                                            }
+                                            
                                         };
                                     }
                                     catch (Exception)
@@ -801,6 +782,45 @@ namespace BLE.Client.WinConsole
         internal Task Disconnect(IDevice dev)
         {
             return Adapter.DisconnectDeviceAsync(dev);
+        }
+
+        private void example_read_message()
+        {
+            //
+            // Deserialize the MessageHeader first so we know the commandType.
+            // The protobuf MessageHeader is always 5 bytes long.
+            //
+            /*
+            const int headerSize = 5;
+            using var chs = new MemoryStream(eventArgs.Characteristic.Value, 0, headerSize);
+            var messageHeader = ProtoBuf.Serializer.Deserialize<Cygnus.MessageHeader>(chs);
+            Write($"commandType = {messageHeader.commandType}");
+            switch (messageHeader.commandType)
+            {
+                case Cygnus.CommandType.GetRecordList:
+                    {
+                        Write($"Message Record List");
+
+                        // Deserialize the Message payload from the buffer AFTER the MessageHeader.
+                        int balen = eventArgs.Characteristic.Value.Length;
+                        using var rls = new MemoryStream(eventArgs.Characteristic.Value, headerSize, balen - headerSize);
+                        var messageRecordList = ProtoBuf.Serializer.Deserialize<Cygnus.MessageRecordList>(rls);
+
+                        Write($"numRecords = {messageRecordList.numRecords}");
+                        foreach (var rn in messageRecordList.recordListItems)
+                        {
+                            Write($"RecordName = {rn.recordName} RecordType = {rn.recordType} Req. = {rn.numPointsRequired} Taken = {rn.numPointsTaken}");
+                        }
+                        break;
+                    }
+
+                default:
+                    {
+                        Write($"Message Error");
+                        break;
+                    }
+            }
+            */
         }
 
 
