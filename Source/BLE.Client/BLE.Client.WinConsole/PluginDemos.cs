@@ -40,6 +40,10 @@ namespace BLE.Client.WinConsole
 
         // Cygnus C1Ex GUID or UUID
         private readonly Guid cygnusServiceGuid = new Guid("DE670901-8025-4C69-A40E-ECCD60563713");
+        private readonly Guid cygnusCharGUIDWriteCommand       = new Guid("DE670902-8025-4C69-A40E-ECCD60563713");
+        private readonly Guid cygnusCharGUIDNotifyMessageReady = new Guid("DE670903-8025-4C69-A40E-ECCD60563713");
+        private readonly Guid cygnusCharGUIDReadMessage        = new Guid("DE670904-8025-4C69-A40E-ECCD60563713");
+        private readonly Guid cygnusCharGUIDReadSerial         = new Guid("DE670905-8025-4C69-A40E-ECCD60563713");
 
         // See method AdvertisementReceived() for displaying BLE device info when discovered.
 
@@ -129,6 +133,9 @@ namespace BLE.Client.WinConsole
         public delegate Task<int> CharWriteDataAsync(byte[] data, CancellationToken cancellationToken = default);
         public CharWriteDataAsync charWriteDataAsync;
 
+        public delegate Task<(byte[] data, int resultCode)> CharReadDataAsync(CancellationToken cancellationToken = default);
+        public CharReadDataAsync charReadDataAsync;
+
         /// <summary>
         /// Discover C1Ex gauges and connect to the first one found.
         /// </summary>
@@ -139,6 +146,8 @@ namespace BLE.Client.WinConsole
 
             if (connectToFistC1ExFound)
             {
+                bool readMessageFromGauge = false;
+
                 // If we found a device, try and connect to it.AdvReceived
                 if (discoveredDevices.Count > 0)
                 {
@@ -183,48 +192,61 @@ namespace BLE.Client.WinConsole
                                 if (characteristic.Properties.HasFlag(CharacteristicPropertyType.Write))
                                 {
                                     Write($"Write Characteristic ID = {characteristic.Id}");
-                                    charWriteDataAsync = characteristic.WriteAsync;
+                                    if (cygnusCharGUIDWriteCommand == characteristic.Id)
+                                    {
+                                        charWriteDataAsync = characteristic.WriteAsync;
+                                    }
                                 }
 
                                 if (characteristic.Properties.HasFlag(CharacteristicPropertyType.Read))
                                 {
                                     Write($"Read Characteristic ID = {characteristic.Id}");
+                                    if (cygnusCharGUIDReadMessage == characteristic.Id)
+                                    {
+                                        charReadDataAsync = characteristic.ReadAsync;
+                                    }
                                 }
 
                                 if (characteristic.Properties.HasFlag(CharacteristicPropertyType.Notify))
                                 {
                                     Write($"Notify Characteristic ID = {characteristic.Id}");
-                                    try
+                                    if (cygnusCharGUIDNotifyMessageReady == characteristic.Id)
                                     {
-                                        await characteristic.StartUpdatesAsync();
-                                        characteristic.ValueUpdated += (sender, args) =>
+                                        try
                                         {
-                                            //
-                                            // When we receive a BLE Message object, first deserialize the Message Header so we can
-                                            // decide what kind of message to deseruialize next.
-                                            // Need to convert the byte[] to a stream so we can pull data from it.
-                                            //
-                                            Plugin.BLE.Abstractions.EventArgs.CharacteristicUpdatedEventArgs eventArgs = args;
+                                            await characteristic.StartUpdatesAsync();
+                                            characteristic.ValueUpdated += (sender, args) =>
+                                            {
+                                                //
+                                                // When we receive a BLE Message object, first deserialize the Message Header so we can
+                                                // decide what kind of message to deseruialize next.
+                                                // Need to convert the byte[] to a stream so we can pull data from it.
+                                                //
+                                                Plugin.BLE.Abstractions.EventArgs.CharacteristicUpdatedEventArgs eventArgs = args;
 
-                                            // Display the ASCII data.
-                                            //byte[] ba = eventArgs.Characteristic.Value;
-                                            //Write($"!Characteristic.Value: {ba} Len={ba.Length}");
-                                            //string asciiString = Encoding.ASCII.GetString(ba, 0, ba.Length);
-                                            //Write($"!Notify Characteristic.Value: {asciiString}");
+                                                Write($"[Notify] MessageHeader Received");
 
-                                            //
-                                            // Deserialize the NotifyMessageReady first so we know the commandType to read.
-                                            // The protobuf NotifyMessageReady is always 5 bytes long.
-                                            //
-                                            const int headerSize = 5;
-                                            using var chs = new MemoryStream(eventArgs.Characteristic.Value, 0, headerSize);
-                                            var messageHeader = ProtoBuf.Serializer.Deserialize<Cygnus.NotifyMessageReady>(chs);
-                                            Write($"commandType = {messageHeader.commandType}");
-                                            
-                                        };
-                                    }
-                                    catch (Exception)
-                                    {
+                                                // Display the ASCII data.
+                                                //byte[] ba = eventArgs.Characteristic.Value;
+                                                //Write($"!Characteristic.Value: {ba} Len={ba.Length}");
+                                                //string asciiString = Encoding.ASCII.GetString(ba, 0, ba.Length);
+                                                //Write($"!Notify Characteristic.Value: {asciiString}");
+
+                                                //
+                                                // Deserialize the NotifyMessageReady message so we know the commandType to read.
+                                                // The protobuf NotifyMessageReady is always 2 bytes long.
+                                                //
+                                                const int headerSize = 2;
+                                                using var chs = new MemoryStream(eventArgs.Characteristic.Value, 0, headerSize);
+                                                var messageHeader = ProtoBuf.Serializer.Deserialize<Cygnus.NotifyMessageReady>(chs);
+                                                Write($"[Notify] commandType = {messageHeader.commandType}");
+
+                                                readMessageFromGauge = true;
+                                            };
+                                        }
+                                        catch (Exception)
+                                        {
+                                        }
                                     }
                                 }
                             }
@@ -251,13 +273,47 @@ namespace BLE.Client.WinConsole
                                 ProtoBuf.Serializer.Serialize<Cygnus.CommandHeader>(ms, commandHeader);
                                 await charWriteDataAsync( ms.GetBuffer() );
                                 Write($"CommandType.GetRecordList");
-                                Write($"Sent {ms.Position} bytes");
+                                Write($"[Write] {ms.Position} bytes");
+                            }
 
-                                //const int numBytes = 500;
-                                //byte[] bytes = Enumerable.Repeat((byte)0x43, numBytes).ToArray();
-                                //Write($"Sending {numBytes} bytes to the C1Ex..");
-                                //await charWriteDataAsync(bytes);
-                                //Write($"Sent");
+                            if (readMessageFromGauge )
+                            {
+                                readMessageFromGauge = false;
+
+                                Write($"[Read] Read a MessageHeader + Message");
+                                (byte[] data, int resultCode) = await charReadDataAsync();
+                                Write($"[Read] Recevied {data.Length} bytes");
+
+                                const int headerSize = 5;
+                                if (data.Length >= headerSize)
+                                {
+                                    using var chs = new MemoryStream(data, 0, headerSize);
+                                    var messageHeader = ProtoBuf.Serializer.Deserialize<Cygnus.MessageHeader>(chs);
+                                    //Write($"[Read] commandType = {messageHeader.commandType}");
+                                    switch (messageHeader.commandType )
+                                    {
+                                        case Cygnus.CommandType.GetRecordList:
+                                            {
+                                                Write($"[Read] MessageRecordList");
+
+                                                using var rls = new MemoryStream(data, headerSize, data.Length - headerSize);
+                                                var recordList = ProtoBuf.Serializer.Deserialize<Cygnus.MessageRecordList>(rls);
+
+                                                Write($"[Read] > numRecords = {recordList.numRecords}");
+                                                foreach( var rc in recordList.recordListItems )
+                                                {
+                                                    Write($"[Read] > Name = {rc.recordName} Type = {rc.recordType} Required = {rc.numPointsRequired} Taken = {rc.numPointsTaken}");
+                                                }
+                                                break;
+                                            }
+
+                                        default:
+                                            Write($"[Read] Unhandled Message!");
+                                            break;
+                                    }
+                                }
+
+                                Write($"[Read] Done");
                             }
 
                             if (consoleKey == ConsoleKey.Escape)
