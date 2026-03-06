@@ -1,0 +1,110 @@
+syntax = "proto3";                            
+package Cygnus;                       
+
+/* ---------------------------------------------------------------------------------------------------
+ *
+ * BLE Arangement.
+ * The C1Ex Gauge is the Server, peripheral role.
+ * The PC/Table is the Client, central role.
+ *
+ * The Client always initiates an exchange by sending a Command to the Server, the Server will respond
+ * to a Command by making a Message available for the Client to read. The Client subscribes to a Notify
+ * characteristic that signals a new message is ready to read.
+ *
+ * The Server profile exposes these characteristics for communication.
+ * WRITE  - For the Client to write command.
+ * NOTIFY - For the Client to be notified of a new Message.
+ * READ   - So the Client can read a Message from the server.
+ *
+ * --------------------------------------------------------------------------------------------------- */
+
+
+/* NotifyMessageReady is used to notify the client that a new MessageHeader and Message object is ready. 
+ */
+message NotifyMessageReady
+{
+	// The command that triggered this message. (1 byte)
+	CommandType commandType = 1;
+}
+
+
+/* CommandHeader contains the Command send from the PC to the gauge.
+ * When additional command data is required it follows this header,
+ * for example,
+ * [CommandHeader] + [NewRecord]
+ * This size of this packed message MUST BE 1 byte so we can unpack it from the stream, so values 
+ * used MUST BE <256.
+ */
+message CommandHeader
+{
+	CommandType commandType = 1;
+}
+
+
+/* MessageHeader contains the Message sent from the gauge to the PC in responce to a received Command.
+ * Example, for a GetRecodList command, the reply would be
+ * [MessageHeader] + [MessageRecordList]
+ * This size of this packed message MUST BE 2 bytes so we can unpack it from the stream, so values 
+ * used MUST BE <256.
+ */
+message MessageHeader
+{
+	// The command that triggered this message. (1 byte)
+	CommandType commandType = 1;
+	
+	// The ack value. (1 byte)
+	MessageAckType messageAckType = 2;
+}
+
+
+/* MessageRecordList contains a list of Record found on the gauge. 
+ */
+message MessageRecordList
+{
+	message RecordListItem
+	{
+		string recordName = 1;			// max length = 24 chars.
+		RecordType recordType = 2;
+		uint32 numPointsRequired = 3;
+		uint32 numPointsTaken = 4;
+	}
+
+	// 0=No Records Found, Maximum=100 Records.
+	uint32 numRecords = 1; 
+	
+	// Array of 0..N record items.
+	repeated RecordListItem recordListItem = 2;
+}
+
+
+/* CommandType lists all the commands that can be sent from PC to gauge. 
+ */
+enum CommandType 
+{                      
+	Non = 0;             
+    GetRecordList = 1;		// requests the RecordList
+	GetRecord = 2;			// requests a Record
+	DeleteRecord = 3;		// requests a Record is deleted
+	SetRecord = 4;			// sends a new Record
+}
+
+
+/* MessageAckType is used to signal if a command was successful or not.
+ * For example, after a DeleteRecord command is send, the gauge would replay with a ACK when the 
+ * file was successfully deleted. 
+ */
+enum MessageAckType
+{
+	NAK = 0;
+	ACK = 172;  // =0xAC
+}
+
+
+/* RecordType is the type of record. 
+ */
+enum RecordType 
+{
+    Linear = 0;
+    Grid = 1;
+}
+  
