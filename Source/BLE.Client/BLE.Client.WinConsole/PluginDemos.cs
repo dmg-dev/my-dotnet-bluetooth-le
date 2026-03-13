@@ -11,6 +11,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics.Tracing;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.PortableExecutable;
@@ -312,14 +313,21 @@ namespace BLE.Client.WinConsole
                                 {
                                     // Aync read from the gauge.
                                     Write($"[Read] Read a MessageHeader + Message");
-                                    (byte[] data, int resultCode) = await charReadDataAsync();
-                                    Write($"[Read] Recevied {data.Length} bytes");
+                                    (byte[] dataComp, int resultCode) = await charReadDataAsync();
+                                    Write($"[Read] Recevied {dataComp.Length} bytes (compressed)");
+
+                                    // Decompress the GZip data
+                                    var input = new MemoryStream(dataComp);
+                                    GZipStream gzip = new GZipStream(input, CompressionMode.Decompress);
+                                    var dataUncomp = new MemoryStream();
+                                    gzip.CopyTo(dataUncomp);
+                                    Write($"[Read] Uncompressed gzip of {dataComp.Length} to {dataUncomp.Position} bytes");
 
                                     // Decode the MessageHeader first, its a fixed length message of 5 bytes.
                                     const int headerSize = 5;
-                                    if (data.Length >= headerSize)
+                                    if (dataUncomp.Length >= headerSize)
                                     {
-                                        using var chs = new MemoryStream(data, 0, headerSize);
+                                        using var chs = new MemoryStream(dataUncomp.ToArray(), 0, headerSize);
                                         var messageHeader = ProtoBuf.Serializer.Deserialize<Cygnus.MessageHeader>(chs);
 
                                         // Switch to the CommandType its responding to..
@@ -329,7 +337,7 @@ namespace BLE.Client.WinConsole
                                                 {
                                                     // Decode the MessageRecordList BLOB data.
                                                     Write($"[Read] MessageRecordList");
-                                                    using var rls = new MemoryStream(data, headerSize, data.Length - headerSize);
+                                                    using var rls = new MemoryStream(dataUncomp.ToArray(), headerSize, dataUncomp.ToArray().Length - headerSize);
                                                     var recordList = ProtoBuf.Serializer.Deserialize<Cygnus.MessageRecordList>(rls);
                                                     Write($"[Read] > numRecords = {recordList.numRecords}");
                                                     foreach (var rc in recordList.recordListItems)
