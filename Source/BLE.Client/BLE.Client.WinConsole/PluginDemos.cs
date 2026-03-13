@@ -141,6 +141,24 @@ namespace BLE.Client.WinConsole
 
 
         /// <summary>
+        /// Comnpress a stream using gzip to a byte array.
+        /// </summary>
+        /// <param name="input"></param>
+        /// <returns></returns>
+        public static byte[] CompressGzip(MemoryStream input)
+        {
+            using var output = new MemoryStream();
+
+            using (var gzip = new GZipStream(output, CompressionMode.Compress, true))
+            {
+                input.Position = 0;          // ensure reading from start
+                input.CopyTo(gzip);
+            } // disposing gzip finalizes the gzip stream
+
+            return output.ToArray();
+        }
+
+        /// <summary>
         /// Discover C1Ex gauges and connect to the first one found.
         /// </summary>
         /// <returns></returns>
@@ -232,23 +250,16 @@ namespace BLE.Client.WinConsole
                                             await characteristic.StartUpdatesAsync();
                                             characteristic.ValueUpdated += (sender, args) =>
                                             {
-                                                //
-                                                // When we receive a BLE Message object, first deserialize the Message Header so we can
-                                                // decide what kind of message to deseruialize next.
-                                                // Need to convert the byte[] to a stream so we can pull data from it.
-                                                //
                                                 Plugin.BLE.Abstractions.EventArgs.CharacteristicUpdatedEventArgs eventArgs = args;
 
                                                 Write($"[Notify] MessageHeader Received");
 
                                                 //
                                                 // Deserialize the NotifyMessageReady message so we know the commandType to read.
-                                                // The protobuf NotifyMessageReady is always 2 bytes long.
                                                 //
-                                                const int headerSize = 2;
-                                                using var chs = new MemoryStream(eventArgs.Characteristic.Value, 0, headerSize);
-                                                var messageHeader = ProtoBuf.Serializer.Deserialize<Cygnus.NotifyMessageReady>(chs);
-                                                Write($"[Notify] commandType = {messageHeader.commandType}");
+                                                using var nmrs = new MemoryStream(eventArgs.Characteristic.Value);
+                                                var notifyMessageReady = ProtoBuf.Serializer.Deserialize<Cygnus.NotifyMessageReady>(nmrs);
+                                                Write($"[Notify] commandType = {notifyMessageReady.commandType}");
 
                                                 readMessageFromGauge = true;
                                             };
@@ -286,13 +297,21 @@ namespace BLE.Client.WinConsole
 
                                 try
                                 {
-                                    Write($"Sending a CommandHeader to the C1Ex via protobuf..");
-                                    MemoryStream ms = new MemoryStream();
-                                    Cygnus.CommandHeader commandHeader = new Cygnus.CommandHeader { commandType = Cygnus.CommandType.GetRecordList };
-                                    ProtoBuf.Serializer.Serialize<Cygnus.CommandHeader>(ms, commandHeader);
-                                    await charWriteDataAsync(ms.GetBuffer());
-                                    Write($"CommandType.GetRecordList");
-                                    Write($"[Write] {ms.Position} bytes");
+                                    Write($"[Write] Sending a CommandHeader to the C1Ex via protobuf..");
+                                    MemoryStream cmds = new MemoryStream();
+                                    Cygnus.Command command = new Cygnus.Command();
+                                    command.commandType = Cygnus.CommandType.GetRecordList;
+                                    command.recordName = "blank";
+
+                                    // Create the protobuf stream.
+                                    ProtoBuf.Serializer.Serialize<Cygnus.Command>(cmds, command);
+                                    Write($"[Write] CommandType.GetRecordList");
+                                    Write($"[Write] ProtoBuf = {cmds.Position} bytes");
+
+                                    // Send the compressed command stream.
+                                    var txba = CompressGzip(cmds);
+                                    await charWriteDataAsync(txba);
+                                    Write($"[Write] {txba.Length} bytes");
                                 }
                                 catch (Exception ex)
                                 {
@@ -323,24 +342,21 @@ namespace BLE.Client.WinConsole
                                     gzip.CopyTo(dataUncomp);
                                     Write($"[Read] Uncompressed gzip of {dataComp.Length} to {dataUncomp.Position} bytes");
 
-                                    // Decode the MessageHeader first, its a fixed length message of 5 bytes.
-                                    const int headerSize = 5;
-                                    if (dataUncomp.Length >= headerSize)
+                                    // Decode the Message.
+                                    if (dataUncomp.Length > 0)
                                     {
-                                        using var chs = new MemoryStream(dataUncomp.ToArray(), 0, headerSize);
-                                        var messageHeader = ProtoBuf.Serializer.Deserialize<Cygnus.MessageHeader>(chs);
+                                        dataUncomp.Position = 0;
+                                        var message = ProtoBuf.Serializer.Deserialize<Cygnus.Message>(dataUncomp);
 
                                         // Switch to the CommandType its responding to..
-                                        switch (messageHeader.commandType)
+                                        switch (message.commandType)
                                         {
                                             case Cygnus.CommandType.GetRecordList:
                                                 {
                                                     // Decode the MessageRecordList BLOB data.
                                                     Write($"[Read] MessageRecordList");
-                                                    using var rls = new MemoryStream(dataUncomp.ToArray(), headerSize, dataUncomp.ToArray().Length - headerSize);
-                                                    var recordList = ProtoBuf.Serializer.Deserialize<Cygnus.MessageRecordList>(rls);
-                                                    Write($"[Read] > numRecords = {recordList.numRecords}");
-                                                    foreach (var rc in recordList.recordListItems)
+                                                    Write($"[Read] > numRecords = {message.recordList.numRecords}");
+                                                    foreach (var rc in message.recordList.recordListItems)
                                                     {
                                                         Write($"[Read] > Name = {rc.recordName} Type = {rc.recordType} Required = {rc.numPointsRequired} Taken = {rc.numPointsTaken}");
                                                     }

@@ -19,7 +19,8 @@ package Cygnus;
  * --------------------------------------------------------------------------------------------------- */
 
 
-/* NotifyMessageReady is used to notify the client that a new MessageHeader and Message object is ready. 
+/* =====================================================================================================
+ * NotifyMessageReady is used to notify the client that a new MessageHeader and Message object is ready. 
  */
 message NotifyMessageReady
 {
@@ -28,53 +29,90 @@ message NotifyMessageReady
 }
 
 
-/* CommandHeader contains the Command send from the PC to the gauge.
- * When additional command data is required it follows this header,
- * for example,
- * [CommandHeader] + [NewRecord]
- * This size of this packed message MUST BE 1 byte so we can unpack it from the stream, so values 
- * used MUST BE <256.
+/* =====================================================================================================
+ * Command contains the Command send from the PC to the gauge.
  */
-message CommandHeader
+message Command
 {
-	CommandType commandType = 1;
-}
-
-
-/* MessageHeader contains the Message sent from the gauge to the PC in responce to a received Command.
- * Example, for a GetRecodList command, the reply would be
- * [MessageHeader] + [MessageRecordList]
- * This size of this packed message MUST BE 2 bytes so we can unpack it from the stream, so values 
- * used MUST BE <256.
- */
-message MessageHeader
-{
-	// The command that triggered this message. (1 byte)
+	// The command type.
 	CommandType commandType = 1;
 	
-	// The ack value. (1 byte)
-	MessageAckType messageAckType = 2;
+	// Optional name of a record to get/delete.
+	string recordName = 2;				// max length = 24 chars.
+	
+	// An Optional blank record.
+	BlankRecord blankRecord = 3;
+
+	// ---------------------------------------------------------------
+	// Blank Record for a SetRecord Command.
+	message BlankRecord
+	{
+		string recordName = 1;			// max length = 24 chars.
+		RecordType recordType = 2;
+	}
 }
 
 
-/* MessageRecordList contains a list of Record found on the gauge. 
+/* =====================================================================================================
+ * Message contains the message sent from the gauge to the PC in responce to a received Command.
+ * Example, for a GetRecodList command, the reply would be
+ * [Message] with [RecordList] data.
  */
-message MessageRecordList
+message Message
 {
-	message RecordListItem
+	// The command that triggered this message.
+	CommandType commandType = 1;
+	
+	// The ack value.
+	MessageAckType messageAckType = 2;
+	
+	// An optional Record List.
+	RecordList recordList = 3;
+	
+	// An optional Record.
+	Record record = 4;	
+	
+	// ---------------------------------------------------------------
+	// A MessageRecordList in reposnse to a GetRecordList command.
+	// Contains a list of Record found on the gauge.
+	message RecordList
 	{
+		message RecordListItem
+		{
+			string recordName = 1;			// max length = 24 chars.
+			RecordType recordType = 2;
+			uint32 numPointsRequired = 3;
+			uint32 numPointsTaken = 4;
+		}
+
+		// 0=No Records Found, Maximum=100 Records.
+		uint32 numRecords = 1; 
+		
+		// Array of 0..N record items.
+		repeated RecordListItem recordListItem = 2;
+	}
+
+	
+	// ---------------------------------------------------------------
+	// A Record in reposnse to a GetRecord command.
+	message Record
+	{
+		message RecordMPoint
+		{
+			string name = 1;			// max length = 24 chars.
+		}
+	
 		string recordName = 1;			// max length = 24 chars.
 		RecordType recordType = 2;
 		uint32 numPointsRequired = 3;
 		uint32 numPointsTaken = 4;
+		
+		// Array of 0..N MPoints.
+		repeated RecordMPoint recordMPoint = 5;
 	}
-
-	// 0=No Records Found, Maximum=100 Records.
-	uint32 numRecords = 1; 
-	
-	// Array of 0..N record items.
-	repeated RecordListItem recordListItem = 2;
 }
+
+
 
 
 /* CommandType lists all the commands that can be sent from PC to gauge. 
@@ -108,3 +146,4 @@ enum RecordType
     Grid = 1;
 }
   
+
